@@ -252,12 +252,19 @@ jobs:
           EOF
           fi
 
-          # Read appcast entry
-          ENTRY=$(cat $RUNNER_TEMP/appcast_entry.xml)
-
-          # Insert new entry before </channel> using awk for reliability
-          awk -v entry="$ENTRY" '/<\/channel>/ { print entry } 1' $RUNNER_TEMP/appcast.xml > $RUNNER_TEMP/appcast_new.xml
-          mv $RUNNER_TEMP/appcast_new.xml $RUNNER_TEMP/appcast.xml
+          # Insert new entry before </channel> using Python for reliable multiline handling
+          python3 << 'PYEOF'
+          import os
+          entry_file = os.path.join(os.environ['RUNNER_TEMP'], 'appcast_entry.xml')
+          appcast_file = os.path.join(os.environ['RUNNER_TEMP'], 'appcast.xml')
+          with open(entry_file, 'r') as f:
+              entry = f.read()
+          with open(appcast_file, 'r') as f:
+              appcast = f.read()
+          appcast = appcast.replace('</channel>', entry + '\n    </channel>')
+          with open(appcast_file, 'w') as f:
+              f.write(appcast)
+          PYEOF
 
           echo "Updated appcast.xml:"
           cat $RUNNER_TEMP/appcast.xml
