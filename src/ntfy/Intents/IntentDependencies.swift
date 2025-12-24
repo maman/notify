@@ -11,7 +11,9 @@ import SwiftData
 /// Provides ModelContext access for App Intents
 @MainActor
 final class IntentModelContextProvider: @unchecked Sendable {
-    static let shared = IntentModelContextProvider()
+    // swiftlint:disable:next nonisolated_unsafe_unavailable
+    // Required: removing nonisolated(unsafe) causes Swift 6 error in ntfyApp.swift
+    nonisolated(unsafe) static let shared = IntentModelContextProvider()
 
     private var _modelContainer: ModelContainer?
 
@@ -36,7 +38,7 @@ final class IntentModelContextProvider: @unchecked Sendable {
         modelContainer.mainContext
     }
 
-    private init() {}
+    nonisolated private init() {}
 }
 
 // MARK: - Custom Intent Errors

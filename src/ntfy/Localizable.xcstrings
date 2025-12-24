@@ -4,6 +4,9 @@
     "" : {
       "shouldTranslate" : false
     },
+    "·" : {
+      "shouldTranslate" : false
+    },
     "%@" : {
       "shouldTranslate" : false
     },
@@ -174,7 +177,7 @@
       "shouldTranslate" : false
     },
     "© 2025 Achmad Mahardi" : {
-
+      "shouldTranslate" : false
     },
     "A macOS menu bar app for ntfy.sh notifications" : {
       "localizations" : {
@@ -1412,6 +1415,49 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取得${topic}的未讀數"
+          }
+        }
+      }
+    },
+    "GitHub" : {
+      "shouldTranslate" : false
+    },
+    "GPLv3 License" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPLv3 License"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisensi GPLv3"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPLv3ライセンス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPLv3 许可证"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPLv3 授權條款"
+          }
+        },
+        "zh-HK" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPLv3 授權條款"
           }
         }
       }
@@ -2860,7 +2906,7 @@
       }
     },
     "Notify" : {
-
+      "shouldTranslate" : false
     },
     "Off" : {
       "localizations" : {

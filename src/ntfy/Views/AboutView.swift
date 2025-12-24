@@ -42,6 +42,16 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            // Links
+            HStack(spacing: 16) {
+                Link("GitHub", destination: URL(string: "https://github.com/maman/notify")!)
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text("GPLv3 License")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
             Spacer()
                 .frame(height: 8)
 
