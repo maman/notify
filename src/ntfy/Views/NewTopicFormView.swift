@@ -145,6 +145,13 @@ struct NewTopicFormView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.thinMaterial)
         .navigationTitle("")
+        .onAppear {
+            // Pre-fill topic name if set by URL handler
+            if let pending = appState.pendingTopicName {
+                topicName = pending
+                appState.pendingTopicName = nil
+            }
+        }
     }
 
     private var isValidForm: Bool {

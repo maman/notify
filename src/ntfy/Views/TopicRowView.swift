@@ -62,6 +62,13 @@ struct TopicRowView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+
+                    if topic.isManagedByMDM {
+                        Image(systemName: "building.2.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .help("Managed by your organization")
+                    }
                 }
             }
 
@@ -99,19 +106,26 @@ struct TopicRowView: View {
             }
             .tint(.blue)
 
-            Button(role: .destructive) {
-                activeAlert = .deleteSingle
-            } label: {
-                Image(systemName: "bell.slash")
+            // Only show delete action if topic is not managed by MDM
+            if !topic.isManagedByMDM {
+                Button(role: .destructive) {
+                    activeAlert = .deleteSingle
+                } label: {
+                    Image(systemName: "bell.slash")
+                }
             }
         }
         .contextMenu {
             if isInMultiSelection {
                 // Bulk actions when multiple topics are selected
-                Button(role: .destructive) {
-                    activeAlert = .deleteBulk
-                } label: {
-                    Label("Unsubscribe from \(appState.selectedTopicIds.count) Topics...", systemImage: "bell.slash")
+                // Only show if at least one selected topic can be deleted
+                let deletableCount = selectedTopics.filter { !$0.isManagedByMDM }.count
+                if deletableCount > 0 {
+                    Button(role: .destructive) {
+                        activeAlert = .deleteBulk
+                    } label: {
+                        Label("Unsubscribe from \(deletableCount) Topics...", systemImage: "bell.slash")
+                    }
                 }
             } else {
                 // Single topic actions
@@ -124,10 +138,16 @@ struct TopicRowView: View {
 
                 Divider()
 
-                Button(role: .destructive) {
-                    activeAlert = .deleteSingle
-                } label: {
-                    Label("Unsubscribe", systemImage: "bell.slash")
+                // Only show delete if not managed by MDM
+                if topic.isManagedByMDM {
+                    Label("Managed by organization", systemImage: "building.2.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button(role: .destructive) {
+                        activeAlert = .deleteSingle
+                    } label: {
+                        Label("Unsubscribe", systemImage: "bell.slash")
+                    }
                 }
             }
         }

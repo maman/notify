@@ -10,6 +10,7 @@ import SwiftData
 
 @main
 struct ntfyApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState = AppState()
     @Environment(\.openWindow) private var openWindow
 
@@ -76,6 +77,9 @@ struct MenuBarBadgeLabel: View {
             }
         }
         .task {
+            // Initialize managed topics from MDM configuration first
+            await appState.initializeManagedTopics(modelContext: modelContext)
+
             // Subscribe to all topics on app startup
             // Label view is always rendered, so this runs immediately
             await subscribeToAllTopics()
@@ -124,6 +128,34 @@ struct MenuBarBadgeLabel: View {
                 }
 
                 // Open the topics window and bring to front
+                openWindow(id: "topics")
+                DispatchQueue.main.async {
+                    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "topics" }) {
+                        window.makeKeyAndOrderFront(nil)
+                    }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openTopicFromURL)) { notification in
+            // Handle URL scheme - open topic or show subscribe form
+            guard let topicName = notification.userInfo?["topicName"] as? String else { return }
+
+            if let topic = topics.first(where: { $0.name == topicName }) {
+                // Topic exists - select and open
+                appState.selectedTopicId = topic.id
+                appState.isShowingNewTopicForm = false
+                openWindow(id: "topics")
+                DispatchQueue.main.async {
+                    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "topics" }) {
+                        window.makeKeyAndOrderFront(nil)
+                    }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            } else {
+                // Topic not subscribed - show new topic form pre-filled
+                appState.pendingTopicName = topicName
+                appState.isShowingNewTopicForm = true
                 openWindow(id: "topics")
                 DispatchQueue.main.async {
                     if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "topics" }) {
@@ -186,7 +218,21 @@ struct MenuBarContentView: View {
 
         Divider()
 
-        Toggle("Run on Login", isOn: $appState.launchAtLogin)
+        // Show toggle or read-only state based on MDM management
+        if appState.managedConfigService.isLaunchAtLoginManaged {
+            // Read-only when managed by MDM
+            HStack {
+                Text("Run on Login")
+                Spacer()
+                Image(systemName: "building.2.fill")
+                    .font(.caption)
+                Text(appState.launchAtLogin ? "On" : "Off")
+                    .foregroundStyle(.secondary)
+            }
+            .help("Controlled by your organization")
+        } else {
+            Toggle("Run on Login", isOn: $appState.launchAtLogin)
+        }
 
         Divider()
 

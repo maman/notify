@@ -410,6 +410,9 @@
         }
       }
     },
+    "Controlled by your organization" : {
+
+    },
     "Delete message" : {
       "localizations" : {
         "en" : {
@@ -652,6 +655,12 @@
           }
         }
       }
+    },
+    "Managed by organization" : {
+
+    },
+    "Managed by your organization" : {
+
     },
     "Mark All as Read" : {
       "localizations" : {
@@ -1052,6 +1061,12 @@
           }
         }
       }
+    },
+    "Off" : {
+
+    },
+    "On" : {
+
     },
     "Password" : {
       "localizations" : {

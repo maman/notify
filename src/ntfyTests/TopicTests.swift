@@ -101,6 +101,7 @@ struct TopicTests {
         #expect(topic.serverURL == "https://ntfy.sh")
         #expect(topic.username == nil)
         #expect(topic.messages.isEmpty)
+        #expect(topic.isManagedByMDM == false)
     }
 
     @Test("Topic initializes with custom values")
@@ -179,5 +180,75 @@ struct TopicTests {
         try context.save()
 
         #expect(topic.unreadCount == 0)
+    }
+
+    // MARK: - MDM Management Tests
+
+    @Test("isManagedByMDM defaults to false")
+    func isManagedByMDM_defaultsFalse() {
+        let topic = Topic(name: "user-created-topic")
+        #expect(topic.isManagedByMDM == false)
+    }
+
+    @Test("isManagedByMDM can be set to true")
+    func isManagedByMDM_canBeSetTrue() {
+        let topic = Topic(name: "managed-topic")
+        topic.isManagedByMDM = true
+        #expect(topic.isManagedByMDM == true)
+    }
+
+    @Test("isManagedByMDM persists in SwiftData")
+    @MainActor
+    func isManagedByMDM_persistsInSwiftData() throws {
+        let schema = Schema([Topic.self, Message.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+
+        // Create and save a managed topic
+        let topic = Topic(name: "mdm-topic")
+        topic.isManagedByMDM = true
+        context.insert(topic)
+        try context.save()
+
+        // Fetch and verify
+        let descriptor = FetchDescriptor<Topic>(predicate: #Predicate { $0.name == "mdm-topic" })
+        let fetched = try context.fetch(descriptor)
+
+        #expect(fetched.count == 1)
+        #expect(fetched[0].isManagedByMDM == true)
+    }
+
+    @Test("Mixed managed and non-managed topics")
+    @MainActor
+    func mixedManagedTopics() throws {
+        let schema = Schema([Topic.self, Message.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+
+        // Create mixed topics
+        let managed1 = Topic(name: "managed-1")
+        managed1.isManagedByMDM = true
+
+        let managed2 = Topic(name: "managed-2")
+        managed2.isManagedByMDM = true
+
+        let userTopic = Topic(name: "user-topic")
+        // isManagedByMDM defaults to false
+
+        context.insert(managed1)
+        context.insert(managed2)
+        context.insert(userTopic)
+        try context.save()
+
+        // Fetch all and verify
+        let allTopics = try context.fetch(FetchDescriptor<Topic>())
+        let managedTopics = allTopics.filter { $0.isManagedByMDM }
+        let userTopics = allTopics.filter { !$0.isManagedByMDM }
+
+        #expect(allTopics.count == 3)
+        #expect(managedTopics.count == 2)
+        #expect(userTopics.count == 1)
     }
 }

@@ -16,10 +16,14 @@ final class AppState {
     let ntfyService = NtfyService()
     let notificationService = NotificationService.shared
     let keychainService = KeychainService.shared
+    let managedConfigService = ManagedConfigurationService()
 
     /// Selected topic IDs - using Set<UUID> for multi-selection support
     var selectedTopicIds: Set<UUID> = []
     var isShowingNewTopicForm = false
+
+    /// Topic name to pre-fill in the new topic form (set by URL handler)
+    var pendingTopicName: String?
 
     /// Convenience for single-selection scenarios
     var selectedTopicId: UUID? {
@@ -41,6 +45,12 @@ final class AppState {
     var launchAtLogin: Bool {
         get { _launchAtLogin }
         set {
+            // If managed by MDM, ignore user changes
+            if managedConfigService.isLaunchAtLoginManaged {
+                print("Launch at login is managed by MDM and cannot be changed")
+                return
+            }
+
             do {
                 if newValue {
                     try SMAppService.mainApp.register()
@@ -55,7 +65,22 @@ final class AppState {
     }
 
     private func syncLaunchAtLoginState() {
-        _launchAtLogin = SMAppService.mainApp.status == .enabled
+        // If MDM specifies launch at login, apply it
+        if let managedValue = managedConfigService.managedLaunchAtLogin {
+            do {
+                if managedValue {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+                _launchAtLogin = managedValue
+            } catch {
+                print("Failed to apply managed launch at login: \(error)")
+            }
+        } else {
+            // No MDM setting, sync with system state
+            _launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
     }
 
     // MARK: - Initialization
@@ -136,8 +161,19 @@ final class AppState {
         return topic
     }
 
+    /// Check if a topic can be deleted by the user
+    func canDeleteTopic(_ topic: Topic) -> Bool {
+        !topic.isManagedByMDM
+    }
+
     @MainActor
     func deleteTopic(_ topic: Topic, modelContext: ModelContext) async {
+        // Prevent deletion of MDM-managed topics
+        guard canDeleteTopic(topic) else {
+            print("Cannot delete MDM-managed topic: \(topic.name)")
+            return
+        }
+
         // Unsubscribe first (async operation)
         await unsubscribe(from: topic)
 
@@ -162,9 +198,18 @@ final class AppState {
 
     @MainActor
     func deleteTopics(_ topics: [Topic], modelContext: ModelContext) async {
-        // Unsubscribe from all topics in parallel for performance
+        // Filter out MDM-managed topics
+        let deletableTopics = topics.filter { canDeleteTopic($0) }
+
+        if deletableTopics.count != topics.count {
+            print("Skipping \(topics.count - deletableTopics.count) MDM-managed topics")
+        }
+
+        guard !deletableTopics.isEmpty else { return }
+
+        // Unsubscribe from all deletable topics in parallel for performance
         await withTaskGroup(of: Void.self) { group in
-            for topic in topics {
+            for topic in deletableTopics {
                 group.addTask {
                     await self.unsubscribe(from: topic)
                 }
@@ -172,7 +217,7 @@ final class AppState {
         }
 
         // Perform all ModelContext operations synchronously on MainActor
-        for topic in topics {
+        for topic in deletableTopics {
             // Remove password from keychain
             do {
                 try keychainService.removePassword(for: topic.id)
@@ -189,8 +234,53 @@ final class AppState {
             print("Failed to delete topics from database: \(error)")
         }
 
-        // Clear selection
-        selectedTopicIds.removeAll()
+        // Clear selection for deleted topics
+        for topic in deletableTopics {
+            selectedTopicIds.remove(topic.id)
+        }
+    }
+
+    // MARK: - MDM Managed Topics
+
+    /// Initialize managed topics from MDM configuration
+    @MainActor
+    func initializeManagedTopics(modelContext: ModelContext) async {
+        let managedTopics = managedConfigService.managedTopics
+
+        guard !managedTopics.isEmpty else { return }
+
+        for managedTopic in managedTopics {
+            // Check if topic already exists by name
+            let topicName = managedTopic.name
+            let descriptor = FetchDescriptor<Topic>(
+                predicate: #Predicate { $0.name == topicName }
+            )
+
+            if let existingTopic = try? modelContext.fetch(descriptor).first {
+                // Update existing topic to be managed
+                existingTopic.isManagedByMDM = true
+            } else {
+                // Create new managed topic
+                let topic = Topic(
+                    name: managedTopic.name,
+                    serverURL: managedTopic.serverURL ?? "https://ntfy.sh",
+                    username: managedTopic.username
+                )
+                topic.isManagedByMDM = true
+
+                modelContext.insert(topic)
+
+                // Subscribe to the new topic
+                await subscribe(to: topic)
+            }
+        }
+
+        do {
+            try modelContext.save()
+            print("Initialized \(managedTopics.count) managed topics from MDM")
+        } catch {
+            print("Failed to save managed topics: \(error)")
+        }
     }
 
     func renameTopic(_ topic: Topic, to newName: String, modelContext: ModelContext) {

@@ -18,6 +18,9 @@ final class Topic {
     // Password stored in Keychain via KeychainService, keyed by topic.id
     var createdAt: Date
 
+    /// Indicates if this topic is managed by MDM (cannot be deleted by user)
+    var isManagedByMDM: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \Message.topic)
     var messages: [Message] = []
 
