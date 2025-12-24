@@ -1,0 +1,292 @@
+name: Build, Notarize & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  XCODE_PROJECT: src/ntfy.xcodeproj
+  SCHEME: Notify
+  PRODUCT_NAME: Notify
+  BUNDLE_ID: me.mahardi.ntfy
+  TEAM_ID: DKL5CLP48A
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Install dependencies
+        run: brew install create-dmg
+
+      - name: Import Developer ID Certificate
+        env:
+          DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/developer_id.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Decode certificate
+          echo -n "$DEVELOPER_ID_CERT_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$DEVELOPER_ID_CERT_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Resolve Swift Packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project $XCODE_PROJECT \
+            -scheme $SCHEME
+
+      - name: Build and Archive
+        run: |
+          xcodebuild archive \
+            -project $XCODE_PROJECT \
+            -scheme $SCHEME \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/$PRODUCT_NAME.xcarchive \
+            MARKETING_VERSION=${{ steps.version.outputs.version }} \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            CODE_SIGN_IDENTITY="Developer ID Application: Achmad Mahardi ($TEAM_ID)"
+
+      - name: Export Archive
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>developer-id</string>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/$PRODUCT_NAME.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/Export
+
+      - name: Notarize App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          # Create ZIP for notarization
+          ditto -c -k --keepParent "$RUNNER_TEMP/Export/$PRODUCT_NAME.app" "$RUNNER_TEMP/$PRODUCT_NAME.zip"
+
+          # Submit for notarization
+          xcrun notarytool submit "$RUNNER_TEMP/$PRODUCT_NAME.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          # Staple the app
+          xcrun stapler staple "$RUNNER_TEMP/Export/$PRODUCT_NAME.app"
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "$PRODUCT_NAME" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "$PRODUCT_NAME.app" 150 190 \
+            --hide-extension "$PRODUCT_NAME.app" \
+            --app-drop-link 450 185 \
+            "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" \
+            "$RUNNER_TEMP/Export/$PRODUCT_NAME.app" || true
+
+          # create-dmg returns non-zero even on success sometimes, verify file exists
+          if [ ! -f "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" ]; then
+            echo "DMG creation failed"
+            exit 1
+          fi
+
+      - name: Sign DMG with codesign
+        run: |
+          codesign --force --sign "Developer ID Application: Achmad Mahardi ($TEAM_ID)" \
+            "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg"
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          xcrun notarytool submit "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg"
+
+      - name: Download Sparkle tools and sign DMG
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Download Sparkle tools
+          SPARKLE_VERSION="2.6.4"
+          curl -L -o $RUNNER_TEMP/Sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+
+          mkdir -p $RUNNER_TEMP/Sparkle
+          tar -xf $RUNNER_TEMP/Sparkle.tar.xz -C $RUNNER_TEMP/Sparkle
+
+          # Write private key to temp file
+          echo "$SPARKLE_PRIVATE_KEY" > $RUNNER_TEMP/sparkle_private_key
+
+          # Sign the DMG and capture signature
+          SIGNATURE=$($RUNNER_TEMP/Sparkle/bin/sign_update \
+            "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" \
+            --ed-key-file $RUNNER_TEMP/sparkle_private_key)
+
+          echo "SPARKLE_SIGNATURE=$SIGNATURE" >> $GITHUB_ENV
+
+          # Clean up private key
+          rm -f $RUNNER_TEMP/sparkle_private_key
+
+      - name: Generate appcast entry
+        id: appcast
+        run: |
+          DMG_PATH="$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg"
+          FILE_SIZE=$(stat -f%z "$DMG_PATH")
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD_NUMBER="${{ github.run_number }}"
+          PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+
+          # Extract edSignature from the signature output
+          ED_SIGNATURE=$(echo "$SPARKLE_SIGNATURE" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
+
+          # Create appcast entry
+          cat > $RUNNER_TEMP/appcast_entry.xml << EOF
+              <item>
+                  <title>Version $VERSION</title>
+                  <pubDate>$PUB_DATE</pubDate>
+                  <sparkle:version>$BUILD_NUMBER</sparkle:version>
+                  <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                  <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+                  <enclosure
+                      url="${{ secrets.R2_PUBLIC_URL }}/releases/$PRODUCT_NAME-$VERSION.dmg"
+                      sparkle:edSignature="$ED_SIGNATURE"
+                      length="$FILE_SIZE"
+                      type="application/octet-stream"/>
+              </item>
+          EOF
+
+          echo "Generated appcast entry:"
+          cat $RUNNER_TEMP/appcast_entry.xml
+
+      - name: Download and update appcast.xml
+        env:
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          # Try to download existing appcast, or create new one
+          curl -sf "$R2_PUBLIC_URL/appcast.xml" -o $RUNNER_TEMP/appcast.xml || true
+
+          if [ ! -f "$RUNNER_TEMP/appcast.xml" ] || [ ! -s "$RUNNER_TEMP/appcast.xml" ]; then
+            # Create new appcast
+            cat > $RUNNER_TEMP/appcast.xml << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <channel>
+                  <title>Notify Updates</title>
+                  <link>$R2_PUBLIC_URL/appcast.xml</link>
+                  <description>Most recent updates to Notify</description>
+                  <language>en</language>
+              </channel>
+          </rss>
+          EOF
+          fi
+
+          # Read appcast entry
+          ENTRY=$(cat $RUNNER_TEMP/appcast_entry.xml)
+
+          # Insert new entry before </channel> using awk for reliability
+          awk -v entry="$ENTRY" '/<\/channel>/ { print entry } 1' $RUNNER_TEMP/appcast.xml > $RUNNER_TEMP/appcast_new.xml
+          mv $RUNNER_TEMP/appcast_new.xml $RUNNER_TEMP/appcast.xml
+
+          echo "Updated appcast.xml:"
+          cat $RUNNER_TEMP/appcast.xml
+
+      - name: Upload to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          # Install AWS CLI
+          pip install awscli --quiet
+
+          # Configure AWS CLI for R2
+          aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
+          aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
+          aws configure set default.region auto
+
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # Upload DMG to releases folder
+          aws s3 cp "$RUNNER_TEMP/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" \
+            "s3://$R2_BUCKET/releases/$PRODUCT_NAME-${{ steps.version.outputs.version }}.dmg" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          # Upload appcast.xml to root
+          aws s3 cp "$RUNNER_TEMP/appcast.xml" \
+            "s3://$R2_BUCKET/appcast.xml" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "application/xml"
+
+          echo "Uploaded to R2 successfully"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/${{ env.PRODUCT_NAME }}-${{ steps.version.outputs.version }}.dmg
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true

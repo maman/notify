@@ -17,6 +17,7 @@ final class AppState {
     let notificationService = NotificationService.shared
     let keychainService = KeychainService.shared
     let managedConfigService = ManagedConfigurationService()
+    let updaterService = UpdaterService()
 
     /// Selected topic IDs - using Set<UUID> for multi-selection support
     var selectedTopicIds: Set<UUID> = []

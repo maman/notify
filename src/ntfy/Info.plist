@@ -13,5 +13,13 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUFeedURL</key>
+	<string>https://notify-updates.mahardi.me/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>e3ermNLuMTNUMMKzq5kHMwaIhufi3sIBSGUBwqyAgW8=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

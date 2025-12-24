@@ -7,12 +7,19 @@
 
 import SwiftUI
 import SwiftData
+import AppIntents
 
 @main
 struct ntfyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState = AppState()
     @Environment(\.openWindow) private var openWindow
+
+    @MainActor
+    init() {
+        // Register App Intents dependencies
+        AppDependencyManager.shared.add(dependency: IntentModelContextProvider.shared)
+    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -53,6 +60,40 @@ struct ntfyApp: App {
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 750, height: 550)
         .windowResizability(.contentSize)
+        .commands {
+            // Replace default About menu item
+            CommandGroup(replacing: .appInfo) {
+                Button("About Notify") {
+                    openWindow(id: "about")
+                    activateWindow(id: "about")
+                }
+            }
+            // Add Check for Updates after About
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    appState.updaterService.checkForUpdates()
+                }
+                .disabled(!appState.updaterService.canCheckForUpdates)
+            }
+        }
+
+        // About window
+        Window("About Notify", id: "about") {
+            AboutView()
+                .environment(appState)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+    }
+
+    private func activateWindow(id: String) {
+        DispatchQueue.main.async {
+            if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == id }) {
+                window.makeKeyAndOrderFront(nil)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }
 
@@ -77,6 +118,9 @@ struct MenuBarBadgeLabel: View {
             }
         }
         .task {
+            // Set model container for App Intents
+            IntentModelContextProvider.shared.modelContainer = modelContext.container
+
             // Initialize managed topics from MDM configuration first
             await appState.initializeManagedTopics(modelContext: modelContext)
 
@@ -215,6 +259,13 @@ struct MenuBarContentView: View {
             openTopicsWindow()
         }
         .keyboardShortcut("t", modifiers: [.command])
+
+        Divider()
+
+        Button("Check for Updates...") {
+            appState.updaterService.checkForUpdates()
+        }
+        .disabled(!appState.updaterService.canCheckForUpdates)
 
         Divider()
 

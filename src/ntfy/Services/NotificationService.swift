@@ -107,6 +107,11 @@ actor NotificationService {
         // Set thread identifier for grouping
         content.threadIdentifier = topicID.uuidString
 
+        // Set filterCriteria for Focus Filter integration
+        // Format: "topic:<uuid>:priority:<N>" - matched by NtfyFocusFilter's predicate
+        let priority = message.priority ?? 3
+        content.filterCriteria = "topic:\(topicID.uuidString):priority:\(priority)"
+
         // Add category for actions if message has actions
         if let actions = message.actions, !actions.isEmpty {
             content.categoryIdentifier = "NTFY_MESSAGE_WITH_ACTIONS"

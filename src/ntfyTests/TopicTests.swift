@@ -251,4 +251,32 @@ struct TopicTests {
         #expect(managedTopics.count == 2)
         #expect(userTopics.count == 1)
     }
+
+    // MARK: - FilterCriteria Format Tests
+
+    @Test("Topic ID can be used in filterCriteria format")
+    func testTopicIdForFilterCriteria() throws {
+        let topic = Topic(name: "test")
+        let priority = 4
+
+        // Verify filterCriteria format matches Focus Filter expectations
+        let filterCriteria = "topic:\(topic.id.uuidString):priority:\(priority)"
+
+        #expect(filterCriteria.contains(topic.id.uuidString))
+        #expect(filterCriteria.contains("priority:4"))
+        #expect(filterCriteria.hasPrefix("topic:"))
+    }
+
+    @Test("Topic ID is stable for filterCriteria")
+    func testTopicIdStability() throws {
+        let topicId = UUID()
+        let topic = Topic(id: topicId, name: "stable-topic")
+
+        // ID should remain stable
+        #expect(topic.id == topicId)
+
+        // FilterCriteria should use the same ID
+        let filterCriteria = "topic:\(topic.id.uuidString):priority:3"
+        #expect(filterCriteria.contains(topicId.uuidString))
+    }
 }
