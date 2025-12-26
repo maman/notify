@@ -83,7 +83,7 @@ struct NtfyFocusFilter: SetFocusFilterIntent {
 
     func perform() async throws -> some IntentResult {
         // Save filter configuration to shared UserDefaults for app to read
-        let defaults = UserDefaults(suiteName: "group.me.mahardi.ntfy")
+        let defaults = await UserDefaults(suiteName: BuildConfiguration.current.appGroup)
         defaults?.set(allowAllTopics, forKey: "focus.allowAllTopics")
         defaults?.set(minimumPriority.rawValue, forKey: "focus.minimumPriority")
         defaults?.set(allowedTopics.map(\.id.uuidString), forKey: "focus.allowedTopicIds")

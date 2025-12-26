@@ -26,7 +26,12 @@ struct ntfyApp: App {
             Topic.self,
             Message.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let config = BuildConfiguration.current
+        let modelConfiguration = ModelConfiguration(
+            config.swiftDataStoreName,
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -110,7 +115,7 @@ struct MenuBarBadgeLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: totalUnreadCount > 0 ? "bell.badge.fill" : "bell.fill")
+            Image(systemName: totalUnreadCount > 0 ? BuildConfiguration.current.menubarIconWithNotification : BuildConfiguration.current.menubarIcon)
             if totalUnreadCount > 0 {
                 Text("\(totalUnreadCount)")
                     .font(.caption2)
@@ -129,8 +134,9 @@ struct MenuBarBadgeLabel: View {
             await subscribeToAllTopics()
 
             // Open topics window on first launch
-            if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {
-                UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+            let launchKey = "\(BuildConfiguration.current.userDefaultsPrefix)hasLaunchedBefore"
+            if !UserDefaults.standard.bool(forKey: launchKey) {
+                UserDefaults.standard.set(true, forKey: launchKey)
                 await MainActor.run {
                     openWindow(id: "topics")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

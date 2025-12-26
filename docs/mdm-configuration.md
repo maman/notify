@@ -1,6 +1,6 @@
 # MDM Configuration Guide
 
-> **Requires:** macOS 15.0 (Sequoia) or later
+> **Requires:** macOS 14.0 (Sonoma) or later
 
 This guide explains how to deploy and configure Notify using Mobile Device Management (MDM) for enterprise environments.
 

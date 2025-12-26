@@ -24,7 +24,12 @@ final class IntentModelContextProvider: @unchecked Sendable {
             }
             // Create container if not set (for extension use)
             let schema = Schema([Topic.self, Message.self])
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let buildConfig = BuildConfiguration.current
+            let config = ModelConfiguration(
+                buildConfig.swiftDataStoreName,
+                schema: schema,
+                isStoredInMemoryOnly: false
+            )
             let container = try! ModelContainer(for: schema, configurations: [config])
             _modelContainer = container
             return container

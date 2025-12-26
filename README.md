@@ -24,7 +24,7 @@ Unlike email alerts (slow, easily missed) or Slack (noisy, requires login), Noti
 
 **[Download for macOS](https://github.com/maman/notify/releases/latest)**
 
-**Requirements:** macOS 15.0 (Sequoia) or later
+**Requirements:** macOS 14.0 (Sonoma) or later
 
 ## Quick Start
 

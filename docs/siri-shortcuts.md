@@ -1,6 +1,6 @@
 # Siri & Shortcuts Integration
 
-> **Requires:** macOS 15.0 (Sequoia) or later
+> **Requires:** macOS 14.0 (Sonoma) or later
 
 Notify integrates with Siri and the Shortcuts app, allowing you to control notifications with voice commands and build powerful automations.
 
@@ -187,7 +187,7 @@ Use Shortcuts widgets to display Notify information on your desktop:
 ### Actions Not Appearing in Shortcuts
 
 1. **Restart Notify** — Quit and reopen the app
-2. **Check macOS version** — App Intents require macOS 15.0+
+2. **Check macOS version** — App Intents require macOS 14.0+
 3. **Search correctly** — Search for "Notify" or the action name in Shortcuts
 
 ### Actions Return Errors

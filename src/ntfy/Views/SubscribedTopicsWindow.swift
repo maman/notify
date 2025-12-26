@@ -54,8 +54,8 @@ struct SubscribedTopicsWindow: View {
                     } label: {
                         Text("Unsubscribe from \(selectedCount) Topics...")
                     }
-                    .buttonStyle(.glass)
-                    .glassEffect(.regular.tint(.red.opacity(0.3)))
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
                 }
                 .accessibilityIdentifier("multipleTopicsSelectedView")
             } else {

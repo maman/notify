@@ -1,6 +1,6 @@
 # URL Scheme Reference
 
-> **Requires:** macOS 15.0 (Sequoia) or later
+> **Requires:** macOS 14.0 (Sonoma) or later
 
 Notify supports a custom URL scheme that allows you to open topics directly from links, scripts, or other applications.
 

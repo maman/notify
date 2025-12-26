@@ -1,6 +1,6 @@
 # Focus Mode Integration
 
-> **Requires:** macOS 15.0 (Sequoia) or later
+> **Requires:** macOS 14.0 (Sonoma) or later
 
 Notify integrates with macOS Focus modes, allowing you to control which notifications break through when you need to concentrate.
 
@@ -152,7 +152,7 @@ If you use multiple Macs:
 ### Focus Filter Not Appearing
 
 1. **Restart Notify** — Quit and reopen the app
-2. **Check macOS version** — Focus Filters require macOS 15.0 or later
+2. **Check macOS version** — Focus Filters require macOS 14.0 or later
 3. **Remove and re-add** — Remove Notify from allowed apps and add it again
 
 ## Automation Tips

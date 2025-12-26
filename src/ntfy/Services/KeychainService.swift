@@ -15,7 +15,7 @@ final class KeychainService {
     private let keychain: Keychain
 
     private init() {
-        keychain = Keychain(service: "me.mahardi.ntfy")
+        keychain = Keychain(service: BuildConfiguration.current.keychainService)
             .accessibility(.afterFirstUnlock)
     }
 
